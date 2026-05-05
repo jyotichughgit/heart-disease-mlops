@@ -1,0 +1,214 @@
+name: MLOps CI/CD Pipeline
+
+on:
+  push:
+    branches: [ main, develop ]
+  pull_request:
+    branches: [ main ]
+
+env:
+  PROJECT_ID:    ${{ secrets.GCP_PROJECT_ID }}
+  GKE_CLUSTER:   heart-disease-cluster
+  GKE_ZONE:      us-central1-a
+  IMAGE_NAME:    heart-disease-api
+  GCR_HOSTNAME:  gcr.io
+
+jobs:
+  # ── Job 1: Lint & Static Analysis ─────────────────────────────────────────
+  lint:
+    name: Lint & Code Quality
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python 3.10
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.10"
+          cache: pip
+
+      - name: Install lint dependencies
+        run: |
+          pip install flake8 black isort
+
+      - name: Run flake8
+        run: |
+          flake8 src/ tests/ \
+            --max-line-length=120 \
+            --ignore=E501,W503,E203 \
+            --exclude=src/models/
+
+      - name: Check black formatting
+        run: black --check --line-length 120 src/ tests/
+
+      - name: Check import ordering (isort)
+        run: isort --check-only --diff src/ tests/
+
+  # ── Job 2: Unit Tests ──────────────────────────────────────────────────────
+  test:
+    name: Unit Tests
+    runs-on: ubuntu-latest
+    needs: lint
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python 3.10
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.10"
+          cache: pip
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+
+      - name: Run pytest
+        run: |
+          pytest tests/ -v \
+            --tb=short \
+            --junitxml=reports/test-results.xml \
+            --cov=src \
+            --cov-report=xml:reports/coverage.xml \
+            --cov-report=term-missing
+
+      - name: Upload test results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-results
+          path: reports/
+
+  # ── Job 3: Download Data & Train Model ────────────────────────────────────
+  train:
+    name: Train & Validate Model
+    runs-on: ubuntu-latest
+    needs: test
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python 3.10
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.10"
+          cache: pip
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+
+      - name: Download dataset
+        run: |
+          mkdir -p data
+          python scripts/download_data.py
+
+      - name: Train model
+        run: |
+          python src/train.py --data data/heart.csv --output src/models/
+
+      - name: Validate model performance
+        run: |
+          python scripts/validate_model.py --threshold 0.80
+
+      - name: Upload model artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: model-artifacts
+          path: |
+            src/models/best_model.pkl
+            src/models/feature_config.json
+            mlruns/
+
+  # ── Job 4: Build & Push Docker Image to GCR ───────────────────────────────
+  build-push:
+    name: Build & Push Docker Image
+    runs-on: ubuntu-latest
+    needs: train
+    if: github.ref == 'refs/heads/main'
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Download model artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: model-artifacts
+          path: src/models/
+
+      - name: Authenticate to GCP
+        uses: google-github-actions/auth@v2
+        with:
+          credentials_json: ${{ secrets.GCP_SA_KEY }}
+
+      - name: Set up Cloud SDK
+        uses: google-github-actions/setup-gcloud@v2
+
+      - name: Configure Docker for GCR
+        run: gcloud auth configure-docker --quiet
+
+      - name: Build Docker image
+        run: |
+          docker build \
+            -f docker/Dockerfile \
+            -t $GCR_HOSTNAME/$PROJECT_ID/$IMAGE_NAME:${{ github.sha }} \
+            -t $GCR_HOSTNAME/$PROJECT_ID/$IMAGE_NAME:latest \
+            .
+
+      - name: Push Docker image to GCR
+        run: |
+          docker push $GCR_HOSTNAME/$PROJECT_ID/$IMAGE_NAME:${{ github.sha }}
+          docker push $GCR_HOSTNAME/$PROJECT_ID/$IMAGE_NAME:latest
+
+      - name: Save image tag
+        run: echo "$GCR_HOSTNAME/$PROJECT_ID/$IMAGE_NAME:${{ github.sha }}" > image-tag.txt
+
+      - name: Upload image tag
+        uses: actions/upload-artifact@v4
+        with:
+          name: image-tag
+          path: image-tag.txt
+
+  # ── Job 5: Deploy to GKE ──────────────────────────────────────────────────
+  deploy:
+    name: Deploy to GKE
+    runs-on: ubuntu-latest
+    needs: build-push
+    if: github.ref == 'refs/heads/main'
+    environment: production
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Authenticate to GCP
+        uses: google-github-actions/auth@v2
+        with:
+          credentials_json: ${{ secrets.GCP_SA_KEY }}
+
+      - name: Set up Cloud SDK
+        uses: google-github-actions/setup-gcloud@v2
+
+      - name: Get GKE credentials
+        run: |
+          gcloud container clusters get-credentials $GKE_CLUSTER \
+            --zone $GKE_ZONE --project $PROJECT_ID
+
+      - name: Deploy to GKE
+        run: |
+          # Update image tag in deployment manifest
+          sed -i "s|IMAGE_PLACEHOLDER|$GCR_HOSTNAME/$PROJECT_ID/$IMAGE_NAME:${{ github.sha }}|g" \
+            k8s/deployment.yaml
+          kubectl apply -f k8s/
+          kubectl rollout status deployment/heart-disease-api -n mlops --timeout=300s
+
+      - name: Verify deployment
+        run: |
+          kubectl get pods -n mlops -l app=heart-disease-api
+          kubectl get service heart-disease-api-service -n mlops
+
+      - name: Get Load Balancer IP
+        run: |
+          echo "API URL:"
+          kubectl get service heart-disease-api-service -n mlops \
+            -o jsonpath='{.status.loadBalancer.ingress[0].ip}'
+
+      - name: Smoke test deployed API
+        run: |
+          LB_IP=$(kubectl get service heart-disease-api-service -n mlops \
+            -o jsonpath='{.status.loadBalancer.ingress[0].ip}')
+          sleep 10
+          curl -f http://$LB_IP:8000/health || echo "Health check complete"
