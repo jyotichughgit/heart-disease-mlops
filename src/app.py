@@ -76,9 +76,19 @@ class PatientData(BaseModel):
         protected_namespaces=(),
         json_schema_extra={
             "example": {
-                "age": 63, "sex": 1, "cp": 3, "trestbps": 145, "chol": 233,
-                "fbs": 1, "restecg": 0, "thalach": 150, "exang": 0,
-                "oldpeak": 2.3, "slope": 0, "ca": 0, "thal": 1,
+                "age": 63,
+                "sex": 1,
+                "cp": 3,
+                "trestbps": 145,
+                "chol": 233,
+                "fbs": 1,
+                "restecg": 0,
+                "thalach": 150,
+                "exang": 0,
+                "oldpeak": 2.3,
+                "slope": 0,
+                "ca": 0,
+                "thal": 1,
             }
         },
     )
@@ -153,8 +163,21 @@ def predict(patient: PatientData):
     try:
         all_features = config.get(
             "all_features",
-            ["age", "trestbps", "chol", "thalach", "oldpeak",
-             "sex", "cp", "fbs", "restecg", "exang", "slope", "ca", "thal"],
+            [
+                "age",
+                "trestbps",
+                "chol",
+                "thalach",
+                "oldpeak",
+                "sex",
+                "cp",
+                "fbs",
+                "restecg",
+                "exang",
+                "slope",
+                "ca",
+                "thal",
+            ],
         )
 
         input_dict = patient.dict()

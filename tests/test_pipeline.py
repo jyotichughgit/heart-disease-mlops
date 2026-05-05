@@ -22,30 +22,42 @@ def sample_df():
     """Minimal heart disease dataframe for testing."""
     np.random.seed(42)
     n = 50
-    return pd.DataFrame({
-        "age": np.random.randint(30, 80, n).astype(float),
-        "sex": np.random.randint(0, 2, n).astype(float),
-        "cp": np.random.randint(0, 4, n).astype(float),
-        "trestbps": np.random.randint(90, 180, n).astype(float),
-        "chol": np.random.randint(150, 350, n).astype(float),
-        "fbs": np.random.randint(0, 2, n).astype(float),
-        "restecg": np.random.randint(0, 3, n).astype(float),
-        "thalach": np.random.randint(70, 200, n).astype(float),
-        "exang": np.random.randint(0, 2, n).astype(float),
-        "oldpeak": np.random.uniform(0, 5, n),
-        "slope": np.random.randint(0, 3, n).astype(float),
-        "ca": np.random.randint(0, 4, n).astype(float),
-        "thal": np.random.randint(0, 4, n).astype(float),
-        "target": np.random.randint(0, 2, n).astype(int),
-    })
+    return pd.DataFrame(
+        {
+            "age": np.random.randint(30, 80, n).astype(float),
+            "sex": np.random.randint(0, 2, n).astype(float),
+            "cp": np.random.randint(0, 4, n).astype(float),
+            "trestbps": np.random.randint(90, 180, n).astype(float),
+            "chol": np.random.randint(150, 350, n).astype(float),
+            "fbs": np.random.randint(0, 2, n).astype(float),
+            "restecg": np.random.randint(0, 3, n).astype(float),
+            "thalach": np.random.randint(70, 200, n).astype(float),
+            "exang": np.random.randint(0, 2, n).astype(float),
+            "oldpeak": np.random.uniform(0, 5, n),
+            "slope": np.random.randint(0, 3, n).astype(float),
+            "ca": np.random.randint(0, 4, n).astype(float),
+            "thal": np.random.randint(0, 4, n).astype(float),
+            "target": np.random.randint(0, 2, n).astype(int),
+        }
+    )
 
 
 @pytest.fixture
 def sample_patient_dict():
     return {
-        "age": 63.0, "sex": 1.0, "cp": 3.0, "trestbps": 145.0,
-        "chol": 233.0, "fbs": 1.0, "restecg": 0.0, "thalach": 150.0,
-        "exang": 0.0, "oldpeak": 2.3, "slope": 0.0, "ca": 0.0, "thal": 1.0,
+        "age": 63.0,
+        "sex": 1.0,
+        "cp": 3.0,
+        "trestbps": 145.0,
+        "chol": 233.0,
+        "fbs": 1.0,
+        "restecg": 0.0,
+        "thalach": 150.0,
+        "exang": 0.0,
+        "oldpeak": 2.3,
+        "slope": 0.0,
+        "ca": 0.0,
+        "thal": 1.0,
     }
 
 
@@ -57,8 +69,20 @@ class TestDataLoading:
 
     def test_required_columns_exist(self, sample_df):
         required = [
-            "age", "sex", "cp", "trestbps", "chol", "fbs",
-            "restecg", "thalach", "exang", "oldpeak", "slope", "ca", "thal", "target",
+            "age",
+            "sex",
+            "cp",
+            "trestbps",
+            "chol",
+            "fbs",
+            "restecg",
+            "thalach",
+            "exang",
+            "oldpeak",
+            "slope",
+            "ca",
+            "thal",
+            "target",
         ]
         for col in required:
             assert col in sample_df.columns, f"Missing column: {col}"
@@ -96,9 +120,7 @@ class TestDataPreprocessing:
 
         X = sample_df.drop("target", axis=1)
         y = sample_df["target"]
-        X_train, X_test, y_train, y_test = train_test_split(
-            X, y, test_size=0.2, random_state=42, stratify=y
-        )
+        X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42, stratify=y)
         assert len(X_train) + len(X_test) == len(sample_df)
         assert len(X_train) > len(X_test)
 
@@ -119,18 +141,24 @@ class TestDataPreprocessing:
         num_feats = ["age", "trestbps", "chol", "thalach", "oldpeak"]
         cat_feats = ["sex", "cp", "fbs", "restecg", "exang", "slope", "ca", "thal"]
 
-        numeric_transformer = Pipeline([
-            ("imputer", SimpleImputer(strategy="median")),
-            ("scaler", StandardScaler()),
-        ])
-        categorical_transformer = Pipeline([
-            ("imputer", SimpleImputer(strategy="most_frequent")),
-            ("encoder", OneHotEncoder(handle_unknown="ignore", sparse_output=False)),
-        ])
-        preprocessor = ColumnTransformer([
-            ("num", numeric_transformer, num_feats),
-            ("cat", categorical_transformer, cat_feats),
-        ])
+        numeric_transformer = Pipeline(
+            [
+                ("imputer", SimpleImputer(strategy="median")),
+                ("scaler", StandardScaler()),
+            ]
+        )
+        categorical_transformer = Pipeline(
+            [
+                ("imputer", SimpleImputer(strategy="most_frequent")),
+                ("encoder", OneHotEncoder(handle_unknown="ignore", sparse_output=False)),
+            ]
+        )
+        preprocessor = ColumnTransformer(
+            [
+                ("num", numeric_transformer, num_feats),
+                ("cat", categorical_transformer, cat_feats),
+            ]
+        )
 
         X = sample_df[num_feats + cat_feats]
         result = preprocessor.fit_transform(X)
@@ -149,16 +177,30 @@ class TestModelTraining:
         num_feats = ["age", "trestbps", "chol", "thalach", "oldpeak"]
         cat_feats = ["sex", "cp", "fbs", "restecg", "exang", "slope", "ca", "thal"]
 
-        preprocessor = ColumnTransformer([
-            ("num", Pipeline([
-                ("imputer", SimpleImputer(strategy="median")),
-                ("scaler", StandardScaler()),
-            ]), num_feats),
-            ("cat", Pipeline([
-                ("imputer", SimpleImputer(strategy="most_frequent")),
-                ("encoder", OneHotEncoder(handle_unknown="ignore", sparse_output=False)),
-            ]), cat_feats),
-        ])
+        preprocessor = ColumnTransformer(
+            [
+                (
+                    "num",
+                    Pipeline(
+                        [
+                            ("imputer", SimpleImputer(strategy="median")),
+                            ("scaler", StandardScaler()),
+                        ]
+                    ),
+                    num_feats,
+                ),
+                (
+                    "cat",
+                    Pipeline(
+                        [
+                            ("imputer", SimpleImputer(strategy="most_frequent")),
+                            ("encoder", OneHotEncoder(handle_unknown="ignore", sparse_output=False)),
+                        ]
+                    ),
+                    cat_feats,
+                ),
+            ]
+        )
         return Pipeline([("preprocessor", preprocessor), ("classifier", clf)]), num_feats + cat_feats
 
     def test_logistic_regression_trains(self, sample_df):
@@ -244,8 +286,19 @@ class TestAPISchema:
 
     def test_patient_data_all_features_present(self, sample_patient_dict):
         required = [
-            "age", "sex", "cp", "trestbps", "chol", "fbs",
-            "restecg", "thalach", "exang", "oldpeak", "slope", "ca", "thal",
+            "age",
+            "sex",
+            "cp",
+            "trestbps",
+            "chol",
+            "fbs",
+            "restecg",
+            "thalach",
+            "exang",
+            "oldpeak",
+            "slope",
+            "ca",
+            "thal",
         ]
         for feat in required:
             assert feat in sample_patient_dict, f"Missing feature in sample: {feat}"
@@ -257,8 +310,19 @@ class TestAPISchema:
             "numerical_features": ["age", "trestbps", "chol", "thalach", "oldpeak"],
             "categorical_features": ["sex", "cp", "fbs", "restecg", "exang", "slope", "ca", "thal"],
             "all_features": [
-                "age", "trestbps", "chol", "thalach", "oldpeak",
-                "sex", "cp", "fbs", "restecg", "exang", "slope", "ca", "thal",
+                "age",
+                "trestbps",
+                "chol",
+                "thalach",
+                "oldpeak",
+                "sex",
+                "cp",
+                "fbs",
+                "restecg",
+                "exang",
+                "slope",
+                "ca",
+                "thal",
             ],
             "target": "target",
         }

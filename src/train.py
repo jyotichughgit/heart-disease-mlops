@@ -45,18 +45,24 @@ def load_data(path: str) -> pd.DataFrame:
 
 
 def build_preprocessor(num_feats, cat_feats):
-    numeric_transformer = Pipeline([
-        ("imputer", SimpleImputer(strategy="median")),
-        ("scaler", StandardScaler()),
-    ])
-    categorical_transformer = Pipeline([
-        ("imputer", SimpleImputer(strategy="most_frequent")),
-        ("encoder", OneHotEncoder(handle_unknown="ignore", sparse_output=False)),
-    ])
-    return ColumnTransformer([
-        ("num", numeric_transformer, num_feats),
-        ("cat", categorical_transformer, cat_feats),
-    ])
+    numeric_transformer = Pipeline(
+        [
+            ("imputer", SimpleImputer(strategy="median")),
+            ("scaler", StandardScaler()),
+        ]
+    )
+    categorical_transformer = Pipeline(
+        [
+            ("imputer", SimpleImputer(strategy="most_frequent")),
+            ("encoder", OneHotEncoder(handle_unknown="ignore", sparse_output=False)),
+        ]
+    )
+    return ColumnTransformer(
+        [
+            ("num", numeric_transformer, num_feats),
+            ("cat", categorical_transformer, cat_feats),
+        ]
+    )
 
 
 def train_and_evaluate(pipeline, X_train, y_train, X_test, y_test, cv):
@@ -96,20 +102,29 @@ def main(data_path: str, output_dir: str):
     preprocessor = build_preprocessor(num_feats, cat_feats)
 
     models = {
-        "logistic_regression": Pipeline([
-            ("preprocessor", preprocessor),
-            ("classifier", LogisticRegression(C=1.0, max_iter=1000, random_state=RANDOM_STATE)),
-        ]),
-        "random_forest": Pipeline([
-            ("preprocessor", preprocessor),
-            ("classifier", RandomForestClassifier(n_estimators=200, max_depth=8, random_state=RANDOM_STATE)),
-        ]),
-        "gradient_boosting": Pipeline([
-            ("preprocessor", preprocessor),
-            ("classifier", GradientBoostingClassifier(
-                n_estimators=150, learning_rate=0.1, max_depth=4, random_state=RANDOM_STATE
-            )),
-        ]),
+        "logistic_regression": Pipeline(
+            [
+                ("preprocessor", preprocessor),
+                ("classifier", LogisticRegression(C=1.0, max_iter=1000, random_state=RANDOM_STATE)),
+            ]
+        ),
+        "random_forest": Pipeline(
+            [
+                ("preprocessor", preprocessor),
+                ("classifier", RandomForestClassifier(n_estimators=200, max_depth=8, random_state=RANDOM_STATE)),
+            ]
+        ),
+        "gradient_boosting": Pipeline(
+            [
+                ("preprocessor", preprocessor),
+                (
+                    "classifier",
+                    GradientBoostingClassifier(
+                        n_estimators=150, learning_rate=0.1, max_depth=4, random_state=RANDOM_STATE
+                    ),
+                ),
+            ]
+        ),
     }
 
     results = {}
