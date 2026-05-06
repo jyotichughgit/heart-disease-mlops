@@ -171,6 +171,7 @@ gcloud services enable artifactregistry.googleapis.com
 gcloud services enable cloudbuild.googleapis.com
 gcloud services enable container.googleapis.com
 gcloud services enable compute.googleapis.com
+gcloud services enable cloudresourcemanager.googleapis.com
 ```
 
 > **Note:** If `compute.googleapis.com` fails with internal error, go to
@@ -321,6 +322,20 @@ gke-heart-disease-cluster-default-pool-xxxx-xxxx   Ready    <none>   2m    v1.35
 gke-heart-disease-cluster-default-pool-xxxx-xxxx   Ready    <none>   2m    v1.35.x
 ```
 
+### Step 5 — Grant GKE Nodes Permission to Pull from Artifact Registry
+
+> **Important:** Without this step, pods will fail with `ImagePullBackOff 403 Forbidden`.
+> GKE nodes use the Compute Engine default service account which needs explicit
+> read access to Artifact Registry.
+
+```bash
+# Get project number
+export PROJECT_NUMBER=$(gcloud projects describe $PROJECT_ID --format='value(projectNumber)')
+
+# Grant Artifact Registry reader to GKE nodes
+gcloud projects add-iam-policy-binding $PROJECT_ID   --member="serviceAccount:$PROJECT_NUMBER-compute@developer.gserviceaccount.com"   --role="roles/artifactregistry.reader"
+```
+
 > **Cost tip:** ~$2-3/day. Delete when not in use:
 > ```bash
 > gcloud container clusters delete heart-disease-cluster --zone=us-central1-a
@@ -341,6 +356,7 @@ Add all three secrets:
 | Secret Name | Value | How to get it |
 |---|---|---|
 | `GCP_PROJECT_ID` | `heart-disease-mlops-jyotichugh` | `echo $PROJECT_ID` |
+| `GCP_PROJECT_NUMBER` | `212262215660` | `gcloud projects describe $PROJECT_ID --format='value(projectNumber)'` |
 | `GCP_SA_EMAIL` | `github-actions-sa@heart-disease-mlops-jyotichugh.iam.gserviceaccount.com` | Replace with your project ID |
 | `GCP_WORKLOAD_IDENTITY_PROVIDER` | `projects/XXXXXX/locations/global/workloadIdentityPools/github-pool/providers/github-provider` | Output from Step 7e |
 
@@ -396,6 +412,16 @@ isort --profile black --line-length 120 src/ tests/
 kubectl get service heart-disease-api-service -n mlops
 # Look for EXTERNAL-IP column
 ```
+
+### Deployed API (Current)
+
+| Item | Value |
+|------|-------|
+| **External IP** | `34.31.48.169` |
+| **Health URL** | `http://34.31.48.169:8000/health` |
+| **Predict URL** | `http://34.31.48.169:8000/predict` |
+| **Swagger Docs** | `http://34.31.48.169:8000/docs` |
+| **Replicas** | 2 pods running |
 
 ### API Endpoints
 
@@ -546,6 +572,22 @@ Developer → git push → GitHub
               │  └──────────┘  └──────────┘      │
               └──────────────────────────────────┘
 ```
+
+---
+
+## Troubleshooting
+
+| Error | Cause | Fix |
+|-------|-------|-----|
+| `HTTP Error 502` on dataset download | UCI website temporarily down | Script auto-retries 3 times with 2 fallback URLs |
+| `Permission denied: iam.disableServiceAccountKeyCreation` | GCP org policy blocks JSON keys | Use Workload Identity Federation (already configured) |
+| `ImagePullBackOff 403 Forbidden` on pods | GKE nodes can't pull from Artifact Registry | Grant `roles/artifactregistry.reader` to Compute Engine SA (Step 5 in GKE section) |
+| `HPA invalid: AverageUtilization` | Wrong HPA target type | Use `Utilization` not `AverageUtilization` in k8s/deployment.yaml |
+| `gke-gcloud-auth-plugin not found` | Plugin not installed | `gcloud components install gke-gcloud-auth-plugin` |
+| `Cloud Resource Manager API disabled` | API not enabled | `gcloud services enable cloudresourcemanager.googleapis.com` |
+| Rollout timeout in CI/CD | Pods taking >300s to start | Timeout increased to 600s in workflow |
+| `isort` conflicts with `black` | Different import formatting styles | `setup.cfg` sets `profile = black` for isort |
+| `pkg_resources` not found | Missing setuptools on Python 3.12 | `pip install setuptools` |
 
 ---
 
