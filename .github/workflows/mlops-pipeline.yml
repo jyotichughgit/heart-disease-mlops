@@ -7,11 +7,11 @@ on:
     branches: [ main ]
 
 env:
-  PROJECT_ID:    ${{ secrets.GCP_PROJECT_ID }}
-  GKE_CLUSTER:   heart-disease-cluster
-  GKE_ZONE:      us-central1-a
-  IMAGE_NAME:    heart-disease-api
-  GCR_HOSTNAME:  gcr.io
+  PROJECT_ID:   ${{ secrets.GCP_PROJECT_ID }}
+  GKE_CLUSTER:  heart-disease-cluster
+  GKE_ZONE:     us-central1-a
+  IMAGE_NAME:   heart-disease-api
+  GCR_HOSTNAME: gcr.io
 
 jobs:
   # ── Job 1: Lint & Static Analysis ─────────────────────────────────────────
@@ -28,8 +28,7 @@ jobs:
           cache: pip
 
       - name: Install lint dependencies
-        run: |
-          pip install flake8 black isort
+        run: pip install flake8 black isort
 
       - name: Run flake8
         run: |
@@ -63,6 +62,7 @@ jobs:
 
       - name: Run pytest
         run: |
+          mkdir -p reports
           pytest tests/ -v \
             --tb=short \
             --junitxml=reports/test-results.xml \
@@ -95,17 +95,13 @@ jobs:
         run: pip install -r requirements.txt
 
       - name: Download dataset
-        run: |
-          mkdir -p data
-          python scripts/download_data.py
+        run: python scripts/download_data.py
 
       - name: Train model
-        run: |
-          python src/train.py --data data/heart.csv --output src/models/
+        run: python src/train.py --data data/heart.csv --output src/models/
 
       - name: Validate model performance
-        run: |
-          python scripts/validate_model.py --threshold 0.80
+        run: python scripts/validate_model.py --threshold 0.80
 
       - name: Upload model artifacts
         uses: actions/upload-artifact@v4
@@ -114,7 +110,6 @@ jobs:
           path: |
             src/models/best_model.pkl
             src/models/feature_config.json
-            mlruns/
 
   # ── Job 4: Build & Push Docker Image to GCR ───────────────────────────────
   build-push:
@@ -122,6 +117,10 @@ jobs:
     runs-on: ubuntu-latest
     needs: train
     if: github.ref == 'refs/heads/main'
+    permissions:
+      contents: read
+      id-token: write          # Required for Workload Identity Federation
+
     steps:
       - uses: actions/checkout@v4
 
@@ -131,10 +130,11 @@ jobs:
           name: model-artifacts
           path: src/models/
 
-      - name: Authenticate to GCP
+      - name: Authenticate to GCP (Workload Identity Federation)
         uses: google-github-actions/auth@v2
         with:
-          credentials_json: ${{ secrets.GCP_SA_KEY }}
+          workload_identity_provider: ${{ secrets.GCP_WORKLOAD_IDENTITY_PROVIDER }}
+          service_account: ${{ secrets.GCP_SA_EMAIL }}
 
       - name: Set up Cloud SDK
         uses: google-github-actions/setup-gcloud@v2
@@ -155,15 +155,6 @@ jobs:
           docker push $GCR_HOSTNAME/$PROJECT_ID/$IMAGE_NAME:${{ github.sha }}
           docker push $GCR_HOSTNAME/$PROJECT_ID/$IMAGE_NAME:latest
 
-      - name: Save image tag
-        run: echo "$GCR_HOSTNAME/$PROJECT_ID/$IMAGE_NAME:${{ github.sha }}" > image-tag.txt
-
-      - name: Upload image tag
-        uses: actions/upload-artifact@v4
-        with:
-          name: image-tag
-          path: image-tag.txt
-
   # ── Job 5: Deploy to GKE ──────────────────────────────────────────────────
   deploy:
     name: Deploy to GKE
@@ -171,13 +162,18 @@ jobs:
     needs: build-push
     if: github.ref == 'refs/heads/main'
     environment: production
+    permissions:
+      contents: read
+      id-token: write          # Required for Workload Identity Federation
+
     steps:
       - uses: actions/checkout@v4
 
-      - name: Authenticate to GCP
+      - name: Authenticate to GCP (Workload Identity Federation)
         uses: google-github-actions/auth@v2
         with:
-          credentials_json: ${{ secrets.GCP_SA_KEY }}
+          workload_identity_provider: ${{ secrets.GCP_WORKLOAD_IDENTITY_PROVIDER }}
+          service_account: ${{ secrets.GCP_SA_EMAIL }}
 
       - name: Set up Cloud SDK
         uses: google-github-actions/setup-gcloud@v2
@@ -189,7 +185,6 @@ jobs:
 
       - name: Deploy to GKE
         run: |
-          # Update image tag in deployment manifest
           sed -i "s|IMAGE_PLACEHOLDER|$GCR_HOSTNAME/$PROJECT_ID/$IMAGE_NAME:${{ github.sha }}|g" \
             k8s/deployment.yaml
           kubectl apply -f k8s/
@@ -202,7 +197,6 @@ jobs:
 
       - name: Get Load Balancer IP
         run: |
-          echo "API URL:"
           kubectl get service heart-disease-api-service -n mlops \
             -o jsonpath='{.status.loadBalancer.ingress[0].ip}'
 
