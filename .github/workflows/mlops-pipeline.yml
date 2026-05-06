@@ -10,8 +10,8 @@ env:
   PROJECT_ID:   ${{ secrets.GCP_PROJECT_ID }}
   GKE_CLUSTER:  heart-disease-cluster
   GKE_ZONE:     us-central1-a
-  IMAGE_NAME:   heart-disease-api
-  GCR_HOSTNAME: gcr.io
+  IMAGE_NAME:   heart-disease-repo/heart-disease-api
+  GCR_HOSTNAME: us-central1-docker.pkg.dev
 
 jobs:
   # ── Job 1: Lint & Static Analysis ─────────────────────────────────────────
@@ -140,7 +140,7 @@ jobs:
         uses: google-github-actions/setup-gcloud@v2
 
       - name: Configure Docker for GCR
-        run: gcloud auth configure-docker --quiet
+        run: gcloud auth configure-docker us-central1-docker.pkg.dev --quiet
 
       - name: Build Docker image
         run: |
