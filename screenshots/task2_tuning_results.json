@@ -1,0 +1,46 @@
+{
+  "logistic_regression": {
+    "best_params": {
+      "classifier__C": 1.0,
+      "classifier__solver": "lbfgs"
+    },
+    "best_cv_auc": 0.9025,
+    "test_metrics": {
+      "Accuracy": 0.8852,
+      "Precision": 0.8387,
+      "Recall": 0.9286,
+      "F1": 0.8814,
+      "ROC-AUC": 0.9665
+    }
+  },
+  "random_forest": {
+    "best_params": {
+      "classifier__max_depth": 8,
+      "classifier__min_samples_split": 5,
+      "classifier__n_estimators": 100
+    },
+    "best_cv_auc": 0.9021,
+    "test_metrics": {
+      "Accuracy": 0.9016,
+      "Precision": 0.8438,
+      "Recall": 0.9643,
+      "F1": 0.9,
+      "ROC-AUC": 0.9535
+    }
+  },
+  "gradient_boosting": {
+    "best_params": {
+      "classifier__learning_rate": 0.05,
+      "classifier__max_depth": 3,
+      "classifier__n_estimators": 100
+    },
+    "best_cv_auc": 0.875,
+    "test_metrics": {
+      "Accuracy": 0.8852,
+      "Precision": 0.8387,
+      "Recall": 0.9286,
+      "F1": 0.8814,
+      "ROC-AUC": 0.9513
+    }
+  }
+}
