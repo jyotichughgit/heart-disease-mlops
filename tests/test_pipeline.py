@@ -295,13 +295,14 @@ class TestInference:
 
     def test_predict_single_returns_correct_keys(self, sample_df, tmp_path):
         """Test inference script predict_single returns all required keys."""
-        from sklearn.linear_model import LogisticRegression
-        from sklearn.pipeline import Pipeline
+        import json
+        import pickle
+
         from sklearn.compose import ColumnTransformer
         from sklearn.impute import SimpleImputer
-        from sklearn.preprocessing import StandardScaler, OneHotEncoder
-        import pickle
-        import json
+        from sklearn.linear_model import LogisticRegression
+        from sklearn.pipeline import Pipeline
+        from sklearn.preprocessing import OneHotEncoder, StandardScaler
 
         num_feats = ["age", "trestbps", "chol", "thalach", "oldpeak"]
         cat_feats = ["sex", "cp", "fbs", "restecg", "exang", "slope", "ca", "thal"]
@@ -388,11 +389,11 @@ class TestInference:
 
     def test_predict_single_prediction_is_binary(self, sample_df, tmp_path):
         """Test prediction output is always 0 or 1."""
-        from sklearn.linear_model import LogisticRegression
-        from sklearn.pipeline import Pipeline
         from sklearn.compose import ColumnTransformer
         from sklearn.impute import SimpleImputer
-        from sklearn.preprocessing import StandardScaler, OneHotEncoder
+        from sklearn.linear_model import LogisticRegression
+        from sklearn.pipeline import Pipeline
+        from sklearn.preprocessing import OneHotEncoder, StandardScaler
 
         num_feats = ["age", "trestbps", "chol", "thalach", "oldpeak"]
         cat_feats = ["sex", "cp", "fbs", "restecg", "exang", "slope", "ca", "thal"]
@@ -421,12 +422,13 @@ class TestInference:
 
     def test_reproducibility(self, sample_df, tmp_path):
         """Test same input always produces same output — reproducibility check."""
-        from sklearn.linear_model import LogisticRegression
-        from sklearn.pipeline import Pipeline
+        import pickle
+
         from sklearn.compose import ColumnTransformer
         from sklearn.impute import SimpleImputer
-        from sklearn.preprocessing import StandardScaler, OneHotEncoder
-        import pickle
+        from sklearn.linear_model import LogisticRegression
+        from sklearn.pipeline import Pipeline
+        from sklearn.preprocessing import OneHotEncoder, StandardScaler
 
         num_feats = ["age", "trestbps", "chol", "thalach", "oldpeak"]
         cat_feats = ["sex", "cp", "fbs", "restecg", "exang", "slope", "ca", "thal"]
