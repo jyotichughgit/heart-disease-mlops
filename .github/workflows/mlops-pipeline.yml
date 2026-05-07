@@ -65,7 +65,7 @@ jobs:
             --cov=src \
             --cov-report=xml:reports/coverage.xml \
             --cov-report=term-missing \
-            --cov-fail-under=60
+            --cov-fail-under=70
 
       - name: Upload test results
         if: always()
