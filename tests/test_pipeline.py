@@ -312,7 +312,6 @@ class TestInference:
         from sklearn.compose import ColumnTransformer
         from sklearn.impute import SimpleImputer
         from sklearn.preprocessing import StandardScaler, OneHotEncoder
-        import pickle
 
         num_feats = ["age", "trestbps", "chol", "thalach", "oldpeak"]
         cat_feats = ["sex", "cp", "fbs", "restecg", "exang", "slope", "ca", "thal"]
