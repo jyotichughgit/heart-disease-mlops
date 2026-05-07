@@ -44,9 +44,19 @@ def sample_df():
 @pytest.fixture
 def sample_patient_dict():
     return {
-        "age": 63.0, "sex": 1.0, "cp": 3.0, "trestbps": 145.0,
-        "chol": 233.0, "fbs": 1.0, "restecg": 0.0, "thalach": 150.0,
-        "exang": 0.0, "oldpeak": 2.3, "slope": 0.0, "ca": 0.0, "thal": 1.0,
+        "age": 63.0,
+        "sex": 1.0,
+        "cp": 3.0,
+        "trestbps": 145.0,
+        "chol": 233.0,
+        "fbs": 1.0,
+        "restecg": 0.0,
+        "thalach": 150.0,
+        "exang": 0.0,
+        "oldpeak": 2.3,
+        "slope": 0.0,
+        "ca": 0.0,
+        "thal": 1.0,
     }
 
 
@@ -56,8 +66,22 @@ class TestDataLoading:
         assert len(sample_df) > 0
 
     def test_required_columns_exist(self, sample_df):
-        required = ["age", "sex", "cp", "trestbps", "chol", "fbs",
-                    "restecg", "thalach", "exang", "oldpeak", "slope", "ca", "thal", "target"]
+        required = [
+            "age",
+            "sex",
+            "cp",
+            "trestbps",
+            "chol",
+            "fbs",
+            "restecg",
+            "thalach",
+            "exang",
+            "oldpeak",
+            "slope",
+            "ca",
+            "thal",
+            "target",
+        ]
         for col in required:
             assert col in sample_df.columns, f"Missing: {col}"
 
@@ -218,8 +242,21 @@ class TestAPISchema:
             pytest.skip("app not importable")
 
     def test_patient_data_all_features_present(self, sample_patient_dict):
-        required = ["age", "sex", "cp", "trestbps", "chol", "fbs",
-                    "restecg", "thalach", "exang", "oldpeak", "slope", "ca", "thal"]
+        required = [
+            "age",
+            "sex",
+            "cp",
+            "trestbps",
+            "chol",
+            "fbs",
+            "restecg",
+            "thalach",
+            "exang",
+            "oldpeak",
+            "slope",
+            "ca",
+            "thal",
+        ]
         for feat in required:
             assert feat in sample_patient_dict
 
@@ -229,8 +266,21 @@ class TestAPISchema:
             "best_roc_auc": 0.92,
             "numerical_features": ["age", "trestbps", "chol", "thalach", "oldpeak"],
             "categorical_features": ["sex", "cp", "fbs", "restecg", "exang", "slope", "ca", "thal"],
-            "all_features": ["age", "trestbps", "chol", "thalach", "oldpeak",
-                             "sex", "cp", "fbs", "restecg", "exang", "slope", "ca", "thal"],
+            "all_features": [
+                "age",
+                "trestbps",
+                "chol",
+                "thalach",
+                "oldpeak",
+                "sex",
+                "cp",
+                "fbs",
+                "restecg",
+                "exang",
+                "slope",
+                "ca",
+                "thal",
+            ],
             "target": "target",
         }
         p = tmp_path / "feature_config.json"
@@ -256,11 +306,24 @@ class TestInference:
         num_feats = ["age", "trestbps", "chol", "thalach", "oldpeak"]
         cat_feats = ["sex", "cp", "fbs", "restecg", "exang", "slope", "ca", "thal"]
 
-        preprocessor = ColumnTransformer([
-            ("num", Pipeline([("i", SimpleImputer(strategy="median")), ("s", StandardScaler())]), num_feats),
-            ("cat", Pipeline([("i", SimpleImputer(strategy="most_frequent")), ("e", OneHotEncoder(handle_unknown="ignore", sparse_output=False))]), cat_feats),
-        ])
-        pipeline = Pipeline([("preprocessor", preprocessor), ("classifier", LogisticRegression(max_iter=1000, random_state=42))])
+        preprocessor = ColumnTransformer(
+            [
+                ("num", Pipeline([("i", SimpleImputer(strategy="median")), ("s", StandardScaler())]), num_feats),
+                (
+                    "cat",
+                    Pipeline(
+                        [
+                            ("i", SimpleImputer(strategy="most_frequent")),
+                            ("e", OneHotEncoder(handle_unknown="ignore", sparse_output=False)),
+                        ]
+                    ),
+                    cat_feats,
+                ),
+            ]
+        )
+        pipeline = Pipeline(
+            [("preprocessor", preprocessor), ("classifier", LogisticRegression(max_iter=1000, random_state=42))]
+        )
         pipeline.fit(sample_df[num_feats + cat_feats], sample_df["target"])
 
         model_path = tmp_path / "best_model.pkl"
@@ -285,9 +348,21 @@ class TestInference:
         with open(config_path) as f:
             cfg = json.load(f)
 
-        patient = {"age": 63.0, "sex": 1.0, "cp": 3.0, "trestbps": 145.0,
-                   "chol": 233.0, "fbs": 1.0, "restecg": 0.0, "thalach": 150.0,
-                   "exang": 0.0, "oldpeak": 2.3, "slope": 0.0, "ca": 0.0, "thal": 1.0}
+        patient = {
+            "age": 63.0,
+            "sex": 1.0,
+            "cp": 3.0,
+            "trestbps": 145.0,
+            "chol": 233.0,
+            "fbs": 1.0,
+            "restecg": 0.0,
+            "thalach": 150.0,
+            "exang": 0.0,
+            "oldpeak": 2.3,
+            "slope": 0.0,
+            "ca": 0.0,
+            "thal": 1.0,
+        }
 
         input_df = pd.DataFrame([{k: patient.get(k, 0) for k in cfg["all_features"]}])
         prediction = int(model.predict(input_df)[0])
@@ -301,7 +376,13 @@ class TestInference:
             "probability_no_disease": round(float(probas[0]), 4),
         }
 
-        required_keys = ["prediction", "prediction_label", "confidence", "probability_disease", "probability_no_disease"]
+        required_keys = [
+            "prediction",
+            "prediction_label",
+            "confidence",
+            "probability_disease",
+            "probability_no_disease",
+        ]
         for key in required_keys:
             assert key in result, f"Missing key: {key}"
 
@@ -315,11 +396,24 @@ class TestInference:
 
         num_feats = ["age", "trestbps", "chol", "thalach", "oldpeak"]
         cat_feats = ["sex", "cp", "fbs", "restecg", "exang", "slope", "ca", "thal"]
-        preprocessor = ColumnTransformer([
-            ("num", Pipeline([("i", SimpleImputer(strategy="median")), ("s", StandardScaler())]), num_feats),
-            ("cat", Pipeline([("i", SimpleImputer(strategy="most_frequent")), ("e", OneHotEncoder(handle_unknown="ignore", sparse_output=False))]), cat_feats),
-        ])
-        pipeline = Pipeline([("preprocessor", preprocessor), ("classifier", LogisticRegression(max_iter=1000, random_state=42))])
+        preprocessor = ColumnTransformer(
+            [
+                ("num", Pipeline([("i", SimpleImputer(strategy="median")), ("s", StandardScaler())]), num_feats),
+                (
+                    "cat",
+                    Pipeline(
+                        [
+                            ("i", SimpleImputer(strategy="most_frequent")),
+                            ("e", OneHotEncoder(handle_unknown="ignore", sparse_output=False)),
+                        ]
+                    ),
+                    cat_feats,
+                ),
+            ]
+        )
+        pipeline = Pipeline(
+            [("preprocessor", preprocessor), ("classifier", LogisticRegression(max_iter=1000, random_state=42))]
+        )
         pipeline.fit(sample_df[num_feats + cat_feats], sample_df["target"])
 
         predictions = pipeline.predict(sample_df[num_feats + cat_feats])
@@ -336,11 +430,24 @@ class TestInference:
 
         num_feats = ["age", "trestbps", "chol", "thalach", "oldpeak"]
         cat_feats = ["sex", "cp", "fbs", "restecg", "exang", "slope", "ca", "thal"]
-        preprocessor = ColumnTransformer([
-            ("num", Pipeline([("i", SimpleImputer(strategy="median")), ("s", StandardScaler())]), num_feats),
-            ("cat", Pipeline([("i", SimpleImputer(strategy="most_frequent")), ("e", OneHotEncoder(handle_unknown="ignore", sparse_output=False))]), cat_feats),
-        ])
-        pipeline = Pipeline([("preprocessor", preprocessor), ("classifier", LogisticRegression(max_iter=1000, random_state=42))])
+        preprocessor = ColumnTransformer(
+            [
+                ("num", Pipeline([("i", SimpleImputer(strategy="median")), ("s", StandardScaler())]), num_feats),
+                (
+                    "cat",
+                    Pipeline(
+                        [
+                            ("i", SimpleImputer(strategy="most_frequent")),
+                            ("e", OneHotEncoder(handle_unknown="ignore", sparse_output=False)),
+                        ]
+                    ),
+                    cat_feats,
+                ),
+            ]
+        )
+        pipeline = Pipeline(
+            [("preprocessor", preprocessor), ("classifier", LogisticRegression(max_iter=1000, random_state=42))]
+        )
         pipeline.fit(sample_df[num_feats + cat_feats], sample_df["target"])
 
         model_path = tmp_path / "model.pkl"
@@ -369,9 +476,20 @@ class TestDownloadData:
     def test_column_names_correct(self, sample_df):
         """Test dataset has all 14 required columns."""
         required = [
-            "age", "sex", "cp", "trestbps", "chol",
-            "fbs", "restecg", "thalach", "exang",
-            "oldpeak", "slope", "ca", "thal", "target",
+            "age",
+            "sex",
+            "cp",
+            "trestbps",
+            "chol",
+            "fbs",
+            "restecg",
+            "thalach",
+            "exang",
+            "oldpeak",
+            "slope",
+            "ca",
+            "thal",
+            "target",
         ]
         for col in required:
             assert col in sample_df.columns, f"Missing column: {col}"
@@ -384,10 +502,12 @@ class TestDownloadData:
 
     def test_missing_value_filled_with_median(self):
         """Test missing values are filled with median — matches download_data.py logic."""
-        df = pd.DataFrame({
-            "ca": [0.0, np.nan, 1.0, 2.0, np.nan],
-            "thal": [2.0, 3.0, np.nan, 1.0, 3.0],
-        })
+        df = pd.DataFrame(
+            {
+                "ca": [0.0, np.nan, 1.0, 2.0, np.nan],
+                "thal": [2.0, 3.0, np.nan, 1.0, 3.0],
+            }
+        )
         df.fillna(df.median(numeric_only=True), inplace=True)
         assert df.isnull().sum().sum() == 0, "No missing values should remain after fill"
         assert df["ca"].iloc[1] == 1.0, "Missing ca should be filled with median (1.0)"
