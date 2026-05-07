@@ -1,0 +1,44 @@
+# Git
+.git/
+.gitignore
+
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+venv/
+.venv/
+
+# Data & MLflow (generated at runtime)
+data/
+mlruns/
+mlartifacts/
+
+# Tests & Reports
+tests/
+reports/
+.coverage
+.pytest_cache/
+
+# Notebooks
+notebooks/
+
+# Screenshots
+screenshots/
+
+# Kubernetes & Monitoring (not needed in container)
+k8s/
+monitoring/
+
+# Scripts (not needed in container)
+scripts/
+
+# IDE
+.vscode/
+.idea/
+
+# Security
+gcp-sa-key.json
+*.pem
+*.key
+.env
