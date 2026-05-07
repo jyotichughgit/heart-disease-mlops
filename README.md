@@ -489,15 +489,60 @@ Expected response:
 }
 ```
 
+### Kubernetes Namespace
+
+All resources are deployed in the `mlops` namespace:
+
+```bash
+# View all resources in mlops namespace
+kubectl get all -n mlops
+
+# List all namespaces
+kubectl get namespaces
+```
+
+### Deploy HTML Prediction UI (Optional)
+
+```bash
+# Deploy UI to GKE
+bash scripts/deploy_ui.sh
+
+# Get UI external IP
+kubectl get service heart-disease-ui-service -n mlops
+# Open: http://<UI-IP>
+```
+
+### Fix GKE Node Service Account Warning
+
+If you see "Node service account missing roles/container.defaultNodeServiceAccount" in GCP Console:
+
+```bash
+export PROJECT_NUMBER=$(gcloud projects describe $PROJECT_ID --format='value(projectNumber)')
+
+# Grant all required node roles
+gcloud projects add-iam-policy-binding $PROJECT_ID   --member="serviceAccount:$PROJECT_NUMBER-compute@developer.gserviceaccount.com"   --role="roles/container.defaultNodeServiceAccount"
+
+gcloud projects add-iam-policy-binding $PROJECT_ID   --member="serviceAccount:$PROJECT_NUMBER-compute@developer.gserviceaccount.com"   --role="roles/logging.logWriter"
+
+gcloud projects add-iam-policy-binding $PROJECT_ID   --member="serviceAccount:$PROJECT_NUMBER-compute@developer.gserviceaccount.com"   --role="roles/monitoring.metricWriter"
+
+gcloud projects add-iam-policy-binding $PROJECT_ID   --member="serviceAccount:$PROJECT_NUMBER-compute@developer.gserviceaccount.com"   --role="roles/monitoring.viewer"
+
+gcloud projects add-iam-policy-binding $PROJECT_ID   --member="serviceAccount:$PROJECT_NUMBER-compute@developer.gserviceaccount.com"   --role="roles/stackdriver.resourceMetadata.writer"
+```
+
 ### Screenshots for Task 7 report
 
 ```
 screenshots/task7_gke_pods.png          ← kubectl get pods -n mlops
+screenshots/task7_namespace_mlops.png   ← kubectl get all -n mlops
 screenshots/task7_service_ip.png        ← kubectl get service -n mlops
 screenshots/task7_health_check.png      ← curl /health response
 screenshots/task7_predict_endpoint.png  ← curl /predict response
 screenshots/task7_swagger_ui.png        ← browser showing /docs
-screenshots/task7_gke_console.png       ← GCP Console GKE page
+screenshots/task7_gke_console.png       ← GCP Console → Kubernetes → Clusters page
+screenshots/task7_gke_workloads.png     ← GCP Console → Kubernetes → Workloads → filter mlops
+screenshots/task7_ui_deployed.png       ← HTML UI running in browser (optional)
 ```
 
 ---
@@ -506,42 +551,134 @@ screenshots/task7_gke_console.png       ← GCP Console GKE page
 
 ### API Request Logging
 
-Every API request is automatically logged in `src/app.py`:
+Every API request is automatically logged in `src/app.py` via middleware:
+
+```python
+logger.info(f"{request.method} {request.url.path} -> {response.status_code} ({latency:.3f}s)")
 ```
-2026-05-06 | INFO | POST /predict -> 200 (0.023s)
+
+View live logs from running pod:
+
+```bash
+# Get pod name
+kubectl get pods -n mlops -l app=heart-disease-api
+
+# View live logs
+kubectl logs -f <pod-name> -n mlops
+```
+
+Expected log output:
+```
+2026-05-07 | INFO | POST /predict -> 200 (0.023s)
+2026-05-07 | INFO | GET /health -> 200 (0.001s)
+2026-05-07 | INFO | Prediction: No Heart Disease | Confidence: 0.8146
 ```
 
 ### Deploy Prometheus + Grafana
 
 ```bash
+# Deploy monitoring stack
 kubectl apply -f monitoring/prometheus-grafana.yaml
 
-# Get Grafana IP
+# Verify pods are running
+kubectl get pods -n mlops -l app=prometheus
+kubectl get pods -n mlops -l app=grafana
+
+# Get Grafana external IP
 kubectl get service grafana-service -n mlops
-# Open: http://<GRAFANA-IP>:3000
-# Login: admin / admin123
-# Add data source: http://prometheus-service:9090
 ```
+
+### Access Prometheus UI
+
+```bash
+# Port forward Prometheus locally
+kubectl port-forward -n mlops svc/prometheus-service 9090:9090
+
+# Open in browser
+http://localhost:9090
+
+# Test queries:
+# api_requests_total
+# predictions_total
+# api_request_latency_seconds_bucket
+```
+
+### Access Grafana Dashboard
+
+1. Get Grafana IP:
+```bash
+kubectl get service grafana-service -n mlops
+```
+
+2. Open browser: `http://<GRAFANA-IP>:3000`
+3. Login: `admin` / `admin123`
+4. Go to **Dashboards** → **Heart Disease API** → **Heart Disease API Monitoring**
+5. Dashboard auto-loads with these panels:
+   - Total API Requests
+   - Total Predictions
+   - Request Rate per minute
+   - Request Rate over time by endpoint
+   - Request Latency p95
+   - Predictions by label (pie chart)
+   - HTTP Status codes
+
+> **Note:** Prometheus data source is pre-configured automatically.
+> No manual setup needed — dashboard loads automatically on first login.
 
 ### Prometheus Metrics
 
 | Metric | Description |
 |--------|-------------|
-| `api_requests_total` | Total requests by endpoint and status |
+| `api_requests_total` | Total requests by method, endpoint and status |
 | `api_request_latency_seconds` | Request latency histogram |
-| `predictions_total` | Prediction counts by label |
+| `predictions_total` | Total predictions by label (Heart Disease / No Heart Disease) |
 
 View raw metrics:
 ```bash
 curl http://34.31.48.169:8000/metrics
 ```
 
+### GCP Cloud Logging
+
+GCP automatically captures all pod logs. View at:
+```
+https://console.cloud.google.com/logs?project=heart-disease-mlops-jyotichugh
+```
+Search filter: `heart-disease-api`
+
 ### Screenshots for Task 8 report
 
+```bash
+# Screenshot 1 — Raw Prometheus metrics
+curl http://34.31.48.169:8000/metrics
 ```
-screenshots/task8_prometheus_metrics.png  ← /metrics endpoint output
-screenshots/task8_grafana_dashboard.png   ← Grafana UI
+📸 Save as `screenshots/task8_prometheus_metrics.png`
+
+```bash
+# Screenshot 2 — Prometheus UI with query
+kubectl port-forward -n mlops svc/prometheus-service 9090:9090
+# Open http://localhost:9090 → type api_requests_total → Execute
 ```
+📸 Save as `screenshots/task8_prometheus_ui.png`
+
+```bash
+# Screenshot 3 — Grafana dashboard
+# Open http://<GRAFANA-IP>:3000 → login → Dashboards → Heart Disease API Monitoring
+```
+📸 Save as `screenshots/task8_grafana_dashboard.png`
+
+```bash
+# Screenshot 4 — API logs from pod
+kubectl logs -f <pod-name> -n mlops
+# Make a request in another terminal, watch log appear
+```
+📸 Save as `screenshots/task8_api_logs.png`
+
+```bash
+# Screenshot 5 — GCP Cloud Logging
+# https://console.cloud.google.com/logs?project=heart-disease-mlops-jyotichugh
+```
+📸 Save as `screenshots/task8_cloud_logging.png`
 
 ---
 
@@ -760,6 +897,9 @@ kubectl get service heart-disease-api-service -n mlops
 | `isort` conflicts with `black` | Import formatting conflict | `setup.cfg` sets `profile = black` |
 | `pkg_resources` not found | Missing setuptools on Python 3.12 | `pip install setuptools` |
 | MLflow UI shows Traces tab | MLflow 3.x default | Navigate to `http://localhost:5000/#/experiments/161597278421242986/runs` |
+| GKE node service account warning | Missing IAM roles | Grant `roles/container.defaultNodeServiceAccount`, `roles/logging.logWriter`, `roles/monitoring.metricWriter` to Compute Engine SA |
+| Grafana shows no data | Prometheus not scraping | Check `kubectl get pods -n mlops` — ensure prometheus pod is Running |
+| UI shows blank page | ConfigMap not updated | Re-run `bash scripts/deploy_ui.sh` to refresh ConfigMap |
 
 ---
 
