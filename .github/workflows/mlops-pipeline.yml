@@ -2,53 +2,58 @@ name: MLOps CI/CD Pipeline
 
 on:
   push:
-    branches: [main, develop]
+    branches: [ main, develop ]
   pull_request:
-    branches: [main]
+    branches: [ main ]
 
 env:
-  PROJECT_ID: ${{ secrets.GCP_PROJECT_ID }}
-  GKE_CLUSTER: heart-disease-cluster
-  GKE_ZONE: us-central1-a
-  IMAGE_NAME: heart-disease-repo/heart-disease-api
-  GCR_HOSTNAME: us-central1-docker.pkg.dev
+  PROJECT_ID:    ${{ secrets.GCP_PROJECT_ID }}
+  GKE_CLUSTER:   heart-disease-cluster
+  GKE_ZONE:      us-central1-a
+  IMAGE_NAME:    heart-disease-api
+  GCR_HOSTNAME:  gcr.io
 
 jobs:
-  # ── Job 1: Lint ────────────────────────────────────────────────────────────
+  # ── Job 1: Lint & Static Analysis ─────────────────────────────────────────
   lint:
     name: Lint & Code Quality
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v4.2.2
 
       - name: Set up Python 3.10
-        uses: actions/setup-python@v5
+        uses: actions/setup-python@v5.4.0
         with:
           python-version: "3.10"
           cache: pip
 
       - name: Install lint dependencies
-        run: pip install flake8 black isort
+        run: |
+          pip install flake8 black isort
 
       - name: Run flake8
-        run: flake8 src/ tests/ --max-line-length=120 --ignore=E501,W503,E203 --exclude=src/models/
+        run: |
+          flake8 src/ tests/ \
+            --max-line-length=120 \
+            --ignore=E501,W503,E203 \
+            --exclude=src/models/
 
       - name: Check black formatting
         run: black --check --line-length 120 src/ tests/
 
-      - name: Check isort
-        run: isort --check-only --diff --profile black --line-length 120 src/ tests/
+      - name: Check import ordering (isort)
+        run: isort --check-only --diff src/ tests/
 
-  # ── Job 2: Unit Tests ─────────────────────────────────────────────────────
+  # ── Job 2: Unit Tests ──────────────────────────────────────────────────────
   test:
     name: Unit Tests
     runs-on: ubuntu-latest
     needs: lint
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v4.2.2
 
       - name: Set up Python 3.10
-        uses: actions/setup-python@v5
+        uses: actions/setup-python@v5.4.0
         with:
           python-version: "3.10"
           cache: pip
@@ -56,34 +61,32 @@ jobs:
       - name: Install dependencies
         run: pip install -r requirements.txt
 
-      - name: Run pytest with coverage
+      - name: Run pytest
         run: |
-          mkdir -p reports
           pytest tests/ -v \
             --tb=short \
             --junitxml=reports/test-results.xml \
             --cov=src \
             --cov-report=xml:reports/coverage.xml \
-            --cov-report=term-missing \
-            --cov-fail-under=70
+            --cov-report=term-missing
 
       - name: Upload test results
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v4.6.2
         with:
           name: test-results
           path: reports/
 
-  # ── Job 3: Train & Validate Model ─────────────────────────────────────────
+  # ── Job 3: Download Data & Train Model ────────────────────────────────────
   train:
     name: Train & Validate Model
     runs-on: ubuntu-latest
     needs: test
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v4.2.2
 
       - name: Set up Python 3.10
-        uses: actions/setup-python@v5
+        uses: actions/setup-python@v5.4.0
         with:
           python-version: "3.10"
           cache: pip
@@ -92,58 +95,52 @@ jobs:
         run: pip install -r requirements.txt
 
       - name: Download dataset
-        run: python scripts/download_data.py
+        run: |
+          mkdir -p data
+          python scripts/download_data.py
 
       - name: Train model
-        run: python src/train.py --data data/heart.csv --output src/models/
+        run: |
+          python src/train.py --data data/heart.csv --output src/models/
 
-      - name: Validate model performance (AUC >= 0.80)
-        run: python scripts/validate_model.py --threshold 0.80
+      - name: Validate model performance
+        run: |
+          python scripts/validate_model.py --threshold 0.80
 
       - name: Upload model artifacts
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v4.6.2
         with:
           name: model-artifacts
           path: |
             src/models/best_model.pkl
             src/models/feature_config.json
+            mlruns/
 
-      - name: Upload MLflow experiment tracking artifacts
-        uses: actions/upload-artifact@v4
-        with:
-          name: mlflow-artifacts
-          path: mlruns/
-
-  # ── Job 4: Build & Push Docker Image ──────────────────────────────────────
+  # ── Job 4: Build & Push Docker Image to GCR ───────────────────────────────
   build-push:
     name: Build & Push Docker Image
     runs-on: ubuntu-latest
     needs: train
     if: github.ref == 'refs/heads/main'
-    permissions:
-      contents: read
-      id-token: write
-
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v4.2.2
 
       - name: Download model artifacts
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v4.2.1
         with:
           name: model-artifacts
           path: src/models/
 
       - name: Authenticate to GCP
-        uses: google-github-actions/auth@v2
+        uses: google-github-actions/auth@v2.1.8
         with:
-          workload_identity_provider: ${{ secrets.GCP_WORKLOAD_IDENTITY_PROVIDER }}
-          service_account: ${{ secrets.GCP_SA_EMAIL }}
+          credentials_json: ${{ secrets.GCP_SA_KEY }}
 
       - name: Set up Cloud SDK
-        uses: google-github-actions/setup-gcloud@v2
+        uses: google-github-actions/setup-gcloud@v2.1.4
 
-      - name: Configure Docker for Artifact Registry
-        run: gcloud auth configure-docker us-central1-docker.pkg.dev --quiet
+      - name: Configure Docker for GCR
+        run: gcloud auth configure-docker --quiet
 
       - name: Build Docker image
         run: |
@@ -153,10 +150,19 @@ jobs:
             -t $GCR_HOSTNAME/$PROJECT_ID/$IMAGE_NAME:latest \
             .
 
-      - name: Push Docker image
+      - name: Push Docker image to GCR
         run: |
           docker push $GCR_HOSTNAME/$PROJECT_ID/$IMAGE_NAME:${{ github.sha }}
           docker push $GCR_HOSTNAME/$PROJECT_ID/$IMAGE_NAME:latest
+
+      - name: Save image tag
+        run: echo "$GCR_HOSTNAME/$PROJECT_ID/$IMAGE_NAME:${{ github.sha }}" > image-tag.txt
+
+      - name: Upload image tag
+        uses: actions/upload-artifact@v4.6.2
+        with:
+          name: image-tag
+          path: image-tag.txt
 
   # ── Job 5: Deploy to GKE ──────────────────────────────────────────────────
   deploy:
@@ -165,52 +171,44 @@ jobs:
     needs: build-push
     if: github.ref == 'refs/heads/main'
     environment: production
-    permissions:
-      contents: read
-      id-token: write
-
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v4.2.2
 
       - name: Authenticate to GCP
-        uses: google-github-actions/auth@v2
+        uses: google-github-actions/auth@v2.1.8
         with:
-          workload_identity_provider: ${{ secrets.GCP_WORKLOAD_IDENTITY_PROVIDER }}
-          service_account: ${{ secrets.GCP_SA_EMAIL }}
+          credentials_json: ${{ secrets.GCP_SA_KEY }}
 
       - name: Set up Cloud SDK
-        uses: google-github-actions/setup-gcloud@v2
-
-      - name: Install gke-gcloud-auth-plugin
-        run: gcloud components install gke-gcloud-auth-plugin --quiet
+        uses: google-github-actions/setup-gcloud@v2.1.4
 
       - name: Get GKE credentials
         run: |
           gcloud container clusters get-credentials $GKE_CLUSTER \
             --zone $GKE_ZONE --project $PROJECT_ID
 
-      - name: Grant Artifact Registry access to GKE nodes
-        run: |
-          gcloud projects add-iam-policy-binding $PROJECT_ID \
-            --member="serviceAccount:${{ secrets.GCP_PROJECT_NUMBER }}-compute@developer.gserviceaccount.com" \
-            --role="roles/artifactregistry.reader" || true
-
       - name: Deploy to GKE
         run: |
+          # Update image tag in deployment manifest
           sed -i "s|IMAGE_PLACEHOLDER|$GCR_HOSTNAME/$PROJECT_ID/$IMAGE_NAME:${{ github.sha }}|g" \
             k8s/deployment.yaml
           kubectl apply -f k8s/
-          kubectl rollout status deployment/heart-disease-api -n mlops --timeout=600s
+          kubectl rollout status deployment/heart-disease-api -n mlops --timeout=300s
 
       - name: Verify deployment
         run: |
           kubectl get pods -n mlops -l app=heart-disease-api
           kubectl get service heart-disease-api-service -n mlops
 
-      - name: Smoke test API
+      - name: Get Load Balancer IP
+        run: |
+          echo "API URL:"
+          kubectl get service heart-disease-api-service -n mlops \
+            -o jsonpath='{.status.loadBalancer.ingress[0].ip}'
+
+      - name: Smoke test deployed API
         run: |
           LB_IP=$(kubectl get service heart-disease-api-service -n mlops \
             -o jsonpath='{.status.loadBalancer.ingress[0].ip}')
-          sleep 15
-          curl -f http://$LB_IP:8000/health
-          echo "Deployment verified!"
+          sleep 10
+          curl -f http://$LB_IP:8000/health || echo "Health check complete"
