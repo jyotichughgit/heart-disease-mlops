@@ -135,26 +135,27 @@ jobs:
       - name: Authenticate to GCP
         uses: google-github-actions/auth@v2.1.8
         with:
-          credentials_json: ${{ secrets.GCP_SA_KEY }}
+          workload_identity_provider: ${{ secrets.GCP_WORKLOAD_IDENTITY_PROVIDER }}
+          service_account: ${{ secrets.GCP_SA_EMAIL }}
 
       - name: Set up Cloud SDK
         uses: google-github-actions/setup-gcloud@v2.1.4
 
-      - name: Configure Docker for GCR
-        run: gcloud auth configure-docker --quiet
+      - name: Configure Docker for Artifact Registry
+        run: gcloud auth configure-docker us-central1-docker.pkg.dev --quiet
 
       - name: Build Docker image
         run: |
           docker build \
             -f docker/Dockerfile \
-            -t $GCR_HOSTNAME/$PROJECT_ID/$IMAGE_NAME:${{ github.sha }} \
-            -t $GCR_HOSTNAME/$PROJECT_ID/$IMAGE_NAME:latest \
+            -t us-central1-docker.pkg.dev/${{ secrets.GCP_PROJECT_ID }}/heart-disease-repo/heart-disease-api:${{ github.sha }} \
+            -t us-central1-docker.pkg.dev/${{ secrets.GCP_PROJECT_ID }}/heart-disease-repo/heart-disease-api:latest \
             .
 
-      - name: Push Docker image to GCR
+      - name: Push Docker image to Artifact Registry
         run: |
-          docker push $GCR_HOSTNAME/$PROJECT_ID/$IMAGE_NAME:${{ github.sha }}
-          docker push $GCR_HOSTNAME/$PROJECT_ID/$IMAGE_NAME:latest
+          docker push us-central1-docker.pkg.dev/${{ secrets.GCP_PROJECT_ID }}/heart-disease-repo/heart-disease-api:${{ github.sha }}
+          docker push us-central1-docker.pkg.dev/${{ secrets.GCP_PROJECT_ID }}/heart-disease-repo/heart-disease-api:latest
 
       - name: Save image tag
         run: echo "$GCR_HOSTNAME/$PROJECT_ID/$IMAGE_NAME:${{ github.sha }}" > image-tag.txt
@@ -178,7 +179,8 @@ jobs:
       - name: Authenticate to GCP
         uses: google-github-actions/auth@v2.1.8
         with:
-          credentials_json: ${{ secrets.GCP_SA_KEY }}
+          workload_identity_provider: ${{ secrets.GCP_WORKLOAD_IDENTITY_PROVIDER }}
+          service_account: ${{ secrets.GCP_SA_EMAIL }}
 
       - name: Set up Cloud SDK
         uses: google-github-actions/setup-gcloud@v2.1.4
@@ -191,7 +193,7 @@ jobs:
       - name: Deploy to GKE
         run: |
           # Update image tag in deployment manifest
-          sed -i "s|IMAGE_PLACEHOLDER|$GCR_HOSTNAME/$PROJECT_ID/$IMAGE_NAME:${{ github.sha }}|g" \
+          sed -i "s|IMAGE_PLACEHOLDER|us-central1-docker.pkg.dev/${{ secrets.GCP_PROJECT_ID }}/heart-disease-repo/heart-disease-api:${{ github.sha }}|g" \
             k8s/deployment.yaml
           kubectl apply -f k8s/
           kubectl rollout status deployment/heart-disease-api -n mlops --timeout=300s
