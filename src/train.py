@@ -13,7 +13,6 @@ import warnings
 import mlflow
 import mlflow.sklearn
 import pandas as pd
-
 from sklearn.compose import ColumnTransformer
 from sklearn.ensemble import GradientBoostingClassifier, RandomForestClassifier
 from sklearn.impute import SimpleImputer
@@ -59,18 +58,24 @@ def load_data(path: str) -> pd.DataFrame:
 
 
 def build_preprocessor(num_feats, cat_feats):
-    numeric_transformer = Pipeline([
-        ("imputer", SimpleImputer(strategy="median")),
-        ("scaler", StandardScaler()),
-    ])
-    categorical_transformer = Pipeline([
-        ("imputer", SimpleImputer(strategy="most_frequent")),
-        ("encoder", OneHotEncoder(handle_unknown="ignore", sparse_output=False)),
-    ])
-    return ColumnTransformer([
-        ("num", numeric_transformer, num_feats),
-        ("cat", categorical_transformer, cat_feats),
-    ])
+    numeric_transformer = Pipeline(
+        [
+            ("imputer", SimpleImputer(strategy="median")),
+            ("scaler", StandardScaler()),
+        ]
+    )
+    categorical_transformer = Pipeline(
+        [
+            ("imputer", SimpleImputer(strategy="most_frequent")),
+            ("encoder", OneHotEncoder(handle_unknown="ignore", sparse_output=False)),
+        ]
+    )
+    return ColumnTransformer(
+        [
+            ("num", numeric_transformer, num_feats),
+            ("cat", categorical_transformer, cat_feats),
+        ]
+    )
 
 
 def train_and_evaluate(pipeline, X_train, y_train, X_test, y_test, cv):
@@ -98,9 +103,12 @@ def save_confusion_matrix(y_test, y_pred, name, plots_dir):
     os.makedirs(plots_dir, exist_ok=True)
     fig, ax = plt.subplots(figsize=(6, 5))
     ConfusionMatrixDisplay.from_predictions(
-        y_test, y_pred, ax=ax,
+        y_test,
+        y_pred,
+        ax=ax,
         display_labels=["No Disease", "Disease"],
-        colorbar=False, cmap="Blues",
+        colorbar=False,
+        cmap="Blues",
     )
     ax.set_title(f"{name} — Confusion Matrix", fontweight="bold")
     plt.tight_layout()
@@ -141,9 +149,7 @@ def save_feature_importance(pipeline, name, num_feats, cat_feats, plots_dir):
     try:
         ohe = pipeline.named_steps["preprocessor"].named_transformers_["cat"]["encoder"]
         feat_names = num_feats + ohe.get_feature_names_out(cat_feats).tolist()
-        importances = pd.Series(
-            clf.feature_importances_, index=feat_names
-        ).sort_values(ascending=False)[:15]
+        importances = pd.Series(clf.feature_importances_, index=feat_names).sort_values(ascending=False)[:15]
         fig, ax = plt.subplots(figsize=(10, 6))
         importances.plot(kind="barh", ax=ax, color="#4C72B0", edgecolor="white")
         ax.set_title(f"{name} — Feature Importances", fontweight="bold")
@@ -178,20 +184,29 @@ def main(data_path: str, output_dir: str):
     plots_dir = os.path.join(output_dir, "plots")
 
     models = {
-        "logistic_regression": Pipeline([
-            ("preprocessor", build_preprocessor(num_feats, cat_feats)),
-            ("classifier", LogisticRegression(C=1.0, max_iter=1000, random_state=RANDOM_STATE)),
-        ]),
-        "random_forest": Pipeline([
-            ("preprocessor", build_preprocessor(num_feats, cat_feats)),
-            ("classifier", RandomForestClassifier(n_estimators=200, max_depth=8, random_state=RANDOM_STATE)),
-        ]),
-        "gradient_boosting": Pipeline([
-            ("preprocessor", build_preprocessor(num_feats, cat_feats)),
-            ("classifier", GradientBoostingClassifier(
-                n_estimators=150, learning_rate=0.1, max_depth=4, random_state=RANDOM_STATE
-            )),
-        ]),
+        "logistic_regression": Pipeline(
+            [
+                ("preprocessor", build_preprocessor(num_feats, cat_feats)),
+                ("classifier", LogisticRegression(C=1.0, max_iter=1000, random_state=RANDOM_STATE)),
+            ]
+        ),
+        "random_forest": Pipeline(
+            [
+                ("preprocessor", build_preprocessor(num_feats, cat_feats)),
+                ("classifier", RandomForestClassifier(n_estimators=200, max_depth=8, random_state=RANDOM_STATE)),
+            ]
+        ),
+        "gradient_boosting": Pipeline(
+            [
+                ("preprocessor", build_preprocessor(num_feats, cat_feats)),
+                (
+                    "classifier",
+                    GradientBoostingClassifier(
+                        n_estimators=150, learning_rate=0.1, max_depth=4, random_state=RANDOM_STATE
+                    ),
+                ),
+            ]
+        ),
     }
 
     results = {}
